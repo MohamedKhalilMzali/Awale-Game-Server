@@ -7,7 +7,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include<ctype.h>
-#include "client.h"
+
 
 char* convert_to_uppercase(char input[1024]){
     for(int i=0;input[i]!='\0';i++){
@@ -16,32 +16,35 @@ char* convert_to_uppercase(char input[1024]){
     return input;
 }
 
-void send_to_server(int connect_client_fd, char buffer_in[1024]){ 
-    if(send(connect_client_fd,buffer_in,strlen(buffer_in),0)!=-1){
-        printf("Sent %s to the server\n",buffer_in);
-    }
-    
-}
-
 char* recv_from_server(int connect_client_fd, char buffer_out[1024]){
     recv(connect_client_fd,&buffer_out,strlen(buffer_out)-1,0);
     return convert_to_uppercase(buffer_out);    
 }
-char* select_username(){
-    static char *username;
-    printf("Choose a username: \n");        
-    if (fgets(username, sizeof(username), stdin) != NULL) {
-        username[strcspn(username, "\n")] = '\0';
-    }
-    return username;          
+
+void display_banner(){
+    printf("\n------------------------------------------------\n");
+    printf("\n-----------------AWALE GAME---------------------\n");
+    printf("\n------------------------------------------------\n");
 }
+
+void display_menu(){
+    printf("/register [username] \n");
+    printf("/add-bio [username] [bio] \n");
+    printf("/list-bio [username] \n");
+    printf("/invite [username] \n");
+    printf("/list-online-users \n");
+    printf("/list-current-games \n");
+    printf("/quit \n");
+}
+
 
 void main(int argc, char* argv[]){
     struct sockaddr_in server_addr;
-    char *username;
     int connect_client_fd;
-    char buffer[1024],buffer_output[1024];
-    struct Client client;
+    char buffer_in[1024],buffer_out[1024];
+    char username[256];
+    char *prompt="Awale (not registered)";
+    int nbBytes;
 
     if(argc<2){
         printf("Usage: %s <IP_ADDRESS> <PORT>\n",argv[0]);
@@ -64,40 +67,44 @@ void main(int argc, char* argv[]){
         printf("[-] Could not connect to the server through the socket \n");
         exit(EXIT_FAILURE);
     }
-    
-    username=select_username();
-    if(username!=NULL){
-         printf("Username selected: %s\n",username);
-    }
-  
-    
-    send_to_server(connect_client_fd, username);
-    printf("After calling send \n");
 
-    if(strcmp(recv_from_server(connect_client_fd, buffer_output),"USERNAME AVAILABLE")!=0){            
-        strcpy(client.username,username);
-    }
-    else{
+    printf("\n-------------------------------------\n");
+    printf("Type /help for available commands");
+    printf("\n-------------------------------------\n");
 
-    }        
-    printf("\nclient's username: %s\n",client.username);
-
-
-
-    do{ 
-        printf("%s> ",client.username);
+    do{      
+        printf("%s> ",prompt);
         fflush(stdout);
         
-        fgets(buffer,sizeof(buffer),stdin);
-        buffer[sizeof(buffer)-1]='\0';
-        buffer[strcspn(buffer,"\n")]='\0';
+        fgets(buffer_in,sizeof(buffer_in),stdin);
+        buffer_in[sizeof(buffer_in)-1]='\0';
+        buffer_in[strcspn(buffer_in,"\n")]='\0';
+        
+        if(strcmp(buffer_in,"/help")==0){
+            display_menu();
+            continue;
+        }
+        else{
+            send(connect_client_fd,&buffer_in,strlen(buffer_in),0);
+            printf("Sent Buffer: %s \n",buffer_in);
+        }
 
-        send(connect_client_fd,&buffer,sizeof(buffer),0);
-    } while(strcmp(buffer,"/close")!=0);
+        int nbBytes=recv(connect_client_fd,buffer_out,sizeof(buffer_out),0);        
+        if(nbBytes>0){
+            printf("nbBytes: %d \n",nbBytes);   
+        }
+        if(strcmp(buffer_out,"USERNAME_AVAILABLE")==0){
+            char *command=strtok(buffer_in," ");
+            char *username=strtok(NULL, " ");
+            prompt=username;
+        }
+        printf("Returned: %s \n",buffer_out);                      
+
+    } while(strcmp(buffer_in,"/quit")!=0);
 
     close(connect_client_fd);
     printf("--------------------------------------\n");
-    printf("[*] Leaving the client application \n");
+    printf("You left the server");
     printf("--------------------------------------\n");
     exit(EXIT_SUCCESS);   
 }
